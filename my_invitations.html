@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>My Channel Invitations</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f2f2f2;
+      padding: 40px;
+    }
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    h2 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .back-link {
+      display: block;
+      margin-bottom: 20px;
+      color: #007BFF;
+      text-decoration: none;
+    }
+    .back-link:hover {
+      text-decoration: underline;
+    }
+    .invitation-list {
+      margin-top: 20px;
+    }
+    .invitation-item {
+      border: 1px solid #ddd;
+      padding: 15px;
+      margin-bottom: 15px;
+      border-radius: 4px;
+    }
+    .invitation-name {
+      font-weight: bold;
+      font-size: 18px;
+      margin-bottom: 5px;
+    }
+    .invitation-details {
+      color: #666;
+      margin-bottom: 10px;
+    }
+    .invitation-actions {
+      display: flex;
+      gap: 10px;
+    }
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .btn-accept {
+      background: #28a745;
+      color: white;
+    }
+    .btn-decline {
+      background: #dc3545;
+      color: white;
+    }
+    .message {
+      padding: 10px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+    }
+    .message.success {
+      background-color: #d4edda;
+      color: #155724;
+    }
+    .message.error {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+    .no-invitations {
+      text-align: center;
+      color: #666;
+      padding: 20px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <a href="manage_channels.html" class="back-link">← Back to Channels</a>
+  
+  <h2>My Channel Invitations</h2>
+  
+  <div id="messageContainer"></div>
+  
+  <div class="invitation-list" id="invitationsList">
+    <div class="no-invitations">Loading invitations...</div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Check for URL parameters
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.has('message')) {
+    const messageContainer = document.getElementById('messageContainer');
+    messageContainer.innerHTML = `<div class="message success">${urlParams.get('message')}</div>`;
+  }
+  if (urlParams.has('error')) {
+    const messageContainer = document.getElementById('messageContainer');
+    messageContainer.innerHTML = `<div class="message error">${urlParams.get('error')}</div>`;
+  }
+  
+  // Fetch user's invitations
+  fetch('get_invitations.php')
+    .then(response => response.json())
+    .then(data => {
+      const invitationsContainer = document.getElementById('invitationsList');
+      
+      if (data.length === 0) {
+        invitationsContainer.innerHTML = '<div class="no-invitations">You don\'t have any pending invitations.</div>';
+        return;
+      }
+      
+      let invitationsHTML = '';
+      data.forEach(invitation => {
+        invitationsHTML += `
+          <div class="invitation-item">
+            <div class="invitation-name">${invitation.name}</div>
+            <div class="invitation-details">Invited by: ${invitation.invited_by_username}</div>
+            <div class="invitation-actions">
+              <form action="respond_invitation.php" method="POST">
+                <input type="hidden" name="invitation_id" value="${invitation.invitation_id}">
+                <input type="hidden" name="response" value="accept">
+                <button type="submit" class="btn btn-accept">Accept</button>
+              </form>
+              <form action="respond_invitation.php" method="POST">
+                <input type="hidden" name="invitation_id" value="${invitation.invitation_id}">
+                <input type="hidden" name="response" value="decline">
+                <button type="submit" class="btn btn-decline">Decline</button>
+              </form>
+            </div>
+          </div>
+        `;
+      });
+      
+      invitationsContainer.innerHTML = invitationsHTML;
+    })
+    .catch(error => {
+      document.getElementById('invitationsList').innerHTML = 
+        `<div class="message error">Error loading invitations: ${error.message}</div>`;
+    });
+});
+</script>
+
+</body>
+</html>

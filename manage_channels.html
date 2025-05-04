@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Manage Broadcast Channels</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f2f2f2;
+      padding: 40px;
+    }
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    h2 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .channels-list {
+      margin-top: 30px;
+    }
+    .channel-item {
+      border: 1px solid #ddd;
+      padding: 15px;
+      margin-bottom: 15px;
+      border-radius: 4px;
+    }
+    .channel-title {
+      font-weight: bold;
+      font-size: 18px;
+      margin-bottom: 5px;
+    }
+    .channel-description {
+      color: #666;
+      margin-bottom: 10px;
+    }
+    .channel-actions {
+      display: flex;
+      gap: 10px;
+    }
+    .btn {
+      padding: 8px 16px;
+      background: #007BFF;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .btn-create {
+      margin-bottom: 20px;
+    }
+    .btn-secondary {
+      background: #6c757d;
+    }
+    .no-channels {
+      text-align: center;
+      color: #666;
+      padding: 20px;
+    }
+    .message {
+      margin-top: 20px;
+      text-align: center;
+      padding: 10px;
+      border-radius: 4px;
+    }
+    .message.success {
+      background-color: #d4edda;
+      color: #155724;
+    }
+    .message.error {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h2>Manage Broadcast Channels</h2>
+  
+  <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+    <a href="create_channel.html" class="btn btn-create">Create New Channel</a>
+    <a href="my_invitations.html" class="btn btn-secondary">View My Invitations</a>
+  </div>
+  
+  <?php if (isset($_GET['success'])): ?>
+    <div class="message success"><?php echo htmlspecialchars($_GET['success']); ?></div>
+  <?php endif; ?>
+  
+  <?php if (isset($_GET['error'])): ?>
+    <div class="message error"><?php echo htmlspecialchars($_GET['error']); ?></div>
+  <?php endif; ?>
+  
+  <div class="channels-list" id="channelsList">
+    <div class="channel-item">Loading channels...</div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Fetch user's channels
+  fetch('get_user_channels.php')
+    .then(response => response.json())
+    .then(data => {
+      const channelsContainer = document.getElementById('channelsList');
+      
+      if (data.length === 0) {
+        channelsContainer.innerHTML = '<div class="no-channels">You don\'t have any channels yet.</div>';
+        return;
+      }
+      
+      let channelsHTML = '';
+      data.forEach(channel => {
+        channelsHTML += `
+          <div class="channel-item">
+            <div class="channel-title">${channel.name}</div>
+            <div class="channel-description">${channel.description || 'No description'}</div>
+            <div class="channel-actions">
+              <a href="view_channel.php?id=${channel.id}" class="btn">View Channel</a>
+              ${channel.is_creator ? 
+                `<a href="invite_users.php?channel_id=${channel.id}" class="btn btn-secondary">Invite Users</a>` : 
+                ''}
+            </div>
+          </div>
+        `;
+      });
+      
+      channelsContainer.innerHTML = channelsHTML;
+    })
+    .catch(error => {
+      document.getElementById('channelsList').innerHTML = 
+        `<div class="message error">Error loading channels: ${error.message}</div>`;
+    });
+});
+</script>
+
+</body>
+</html>
