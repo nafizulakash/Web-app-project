@@ -67,6 +67,18 @@ if ($role === 'Admin') {
         $total_users = 0;
     }
 }
+
+// Count user's channels
+$channel_count = 0;
+try {
+    $channel_query = "SELECT COUNT(*) as count FROM user_management.broadcast_channels 
+                     WHERE creator_id = :user_id";
+    $stmt = query_safe($conn, $channel_query, ['user_id' => $_SESSION['user_id']]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $channel_count = $result['count'];
+} catch (PDOException $e) {
+    $channel_count = 0;
+}
 ?>
 
 <!DOCTYPE html>
@@ -272,6 +284,46 @@ if ($role === 'Admin') {
             background-color: #6c757d;
         }
 
+        /* Broadcast Channel Section */
+        .channel-section {
+            background-color: #fff;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        .channel-section h2 {
+            color: #444;
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-size: 20px;
+        }
+
+        .channel-buttons {
+            display: flex;
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .channel-btn {
+            display: inline-block;
+            background-color: #764ba2;
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: background-color 0.3s;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .channel-btn:hover {
+            background-color: #633b8c;
+        }
+
         /* Responsive Styles */
         @media (max-width: 768px) {
             .header {
@@ -290,6 +342,10 @@ if ($role === 'Admin') {
             
             .nav a {
                 margin: 5px 10px 5px 0; /* Adjust margins for mobile */
+            }
+
+            .channel-buttons {
+                flex-direction: column;
             }
         }
         .clickable {
@@ -396,6 +452,20 @@ if ($role === 'Admin') {
             <a href="logout.php">Logout</a>
         </div>
 
+        <!-- New Broadcast Channel Section -->
+        <div class="channel-section">
+            <h2>Broadcast Channels</h2>
+            <p>Create and manage your broadcast channels to send messages to multiple users.</p>
+            <div class="stat-card">
+                <div class="number"><?php echo $channel_count; ?></div>
+                <div class="label">My Channels</div>
+            </div>
+            <div class="channel-buttons">
+                <a href="create_channel.html" class="channel-btn">Create Broadcast Channel</a>
+                <a href="view_channels.html" class="channel-btn">View My Channels</a>
+            </div>
+        </div>
+
         <div class="cards">
             <div class="card">
                 <h3>Profile Information</h3>
@@ -415,6 +485,12 @@ if ($role === 'Admin') {
                 <h3>Account Security</h3>
                 <p>Manage your account security settings and password.</p>
                 <a href="profile_management.php" class="btn">Security Settings</a>
+            </div>
+
+            <div class="card">
+                <h3>Broadcast Messages</h3>
+                <p>Send and manage broadcast messages to your channels.</p>
+                <a href="view_channels.html" class="btn">Manage Channels</a>
             </div>
         </div>
 

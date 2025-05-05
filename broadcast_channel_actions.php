@@ -9,7 +9,7 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-require_once 'db_connection.php';  // Uses pg_connect() for PostgreSQL connection
+require_once 'db.php';  // Using the existing PDO connection
 
 $user_id = $_SESSION['user_id'];
 $action = '';
@@ -53,42 +53,43 @@ function createChannel($conn, $user_id) {
     $channel_name = trim($_POST['channel_name']);
     $channel_description = isset($_POST['channel_description']) ? trim($_POST['channel_description']) : '';
 
-    pg_query($conn, "BEGIN");
-
     try {
+        $conn->beginTransaction();
+
         // Insert channel with RETURNING clause to get the new ID
-        $result = pg_query_params($conn, 
-            "INSERT INTO broadcast_channels (name, description, created_by) 
-             VALUES ($1, $2, $3) RETURNING id",
-            [$channel_name, $channel_description, $user_id]
-        );
+        $stmt = $conn->prepare("
+            INSERT INTO user_management.broadcast_channels (name, description, creator_id) 
+            VALUES (:name, :description, :creator_id) RETURNING id
+        ");
         
-        if (!$result) {
-            throw new Exception(pg_last_error($conn));
-        }
+        $stmt->bindParam(':name', $channel_name);
+        $stmt->bindParam(':description', $channel_description);
+        $stmt->bindParam(':creator_id', $user_id);
+        $stmt->execute();
         
-        $row = pg_fetch_assoc($result);
-        $channel_id = $row['id'];
+        $channel_id = $stmt->fetchColumn();
 
         // Insert admin member
-        $result = pg_query_params($conn,
-            "INSERT INTO channel_members (channel_id, user_id, is_admin) VALUES ($1, $2, TRUE)",
-            [$channel_id, $user_id]
-        );
+        $stmt = $conn->prepare("
+            INSERT INTO user_management.channel_members (channel_id, user_id, is_admin) 
+            VALUES (:channel_id, :user_id, TRUE)
+        ");
         
-        if (!$result) {
-            throw new Exception(pg_last_error($conn));
-        }
+        $stmt->bindParam(':channel_id', $channel_id);
+        $stmt->bindParam(':user_id', $user_id);
+        $stmt->execute();
 
-        pg_query($conn, "COMMIT");
+        $conn->commit();
 
         echo json_encode([
             'status' => 'success',
             'message' => 'Channel created successfully',
             'channel_id' => $channel_id
         ]);
-    } catch (Exception $e) {
-        pg_query($conn, "ROLLBACK");
+    } catch (PDOException $e) {
+        if ($conn->inTransaction()) {
+            $conn->rollBack();
+        }
         echo json_encode([
             'status' => 'error',
             'message' => 'Failed to create channel: ' . $e->getMessage()
@@ -97,92 +98,94 @@ function createChannel($conn, $user_id) {
 }
 
 function getChannels($conn, $user_id) {
-    $query = "
-        SELECT 
-            bc.id, 
-            bc.name, 
-            bc.description, 
-            bc.created_at,
-            bc.created_by, 
-            (SELECT COUNT(*) FROM channel_members WHERE channel_id = bc.id) as member_count,
-            (bc.created_by = $1) as is_creator
-        FROM 
-            broadcast_channels bc 
-        JOIN 
-            channel_members cm ON bc.id = cm.channel_id 
-        WHERE 
-            cm.user_id = $1
-        ORDER BY 
-            bc.created_at DESC
-    ";
-    
-    $result = pg_query_params($conn, $query, [$user_id]);
-    
-    if (!$result) {
+    try {
+        $query = "
+            SELECT 
+                bc.id, 
+                bc.name, 
+                bc.description, 
+                bc.created_at,
+                bc.creator_id, 
+                (SELECT COUNT(*) FROM user_management.channel_members WHERE channel_id = bc.id) as member_count,
+                (bc.creator_id = :user_id) as is_creator
+            FROM 
+                user_management.broadcast_channels bc 
+            JOIN 
+                user_management.channel_members cm ON bc.id = cm.channel_id 
+            WHERE 
+                cm.user_id = :user_id
+            ORDER BY 
+                bc.created_at DESC
+        ";
+        
+        $stmt = $conn->prepare($query);
+        $stmt->bindParam(':user_id', $user_id);
+        $stmt->execute();
+        
+        $channels = [];
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $channels[] = [
+                'id' => $row['id'],
+                'name' => htmlspecialchars($row['name']),
+                'description' => htmlspecialchars($row['description']),
+                'created_at' => $row['created_at'],
+                'member_count' => $row['member_count'],
+                'is_creator' => (bool)$row['is_creator']
+            ];
+        }
+        
+        echo json_encode($channels);
+    } catch (PDOException $e) {
         echo json_encode([
             'status' => 'error',
-            'message' => 'Failed to retrieve channels: ' . pg_last_error($conn)
+            'message' => 'Failed to retrieve channels: ' . $e->getMessage()
         ]);
-        return;
     }
-    
-    $channels = [];
-    while ($row = pg_fetch_assoc($result)) {
-        $channels[] = [
-            'id' => $row['id'],
-            'name' => htmlspecialchars($row['name']),
-            'description' => htmlspecialchars($row['description']),
-            'created_at' => $row['created_at'],
-            'member_count' => $row['member_count'],
-            'is_creator' => (bool)$row['is_creator']
-        ];
-    }
-    
-    echo json_encode($channels);
 }
 
 function getInvitations($conn, $user_id) {
-    $query = "
-        SELECT 
-            ci.id as invitation_id,
-            bc.id as channel_id,
-            bc.name,
-            bc.description,
-            u.username as invited_by_username
-        FROM 
-            channel_invitations ci
-        JOIN 
-            broadcast_channels bc ON ci.channel_id = bc.id
-        JOIN 
-            users u ON ci.invited_by = u.id
-        WHERE 
-            ci.user_id = $1 AND ci.status = 'pending'
-        ORDER BY 
-            ci.created_at DESC
-    ";
-    
-    $result = pg_query_params($conn, $query, [$user_id]);
-    
-    if (!$result) {
+    try {
+        $query = "
+            SELECT 
+                ci.id as invitation_id,
+                bc.id as channel_id,
+                bc.name,
+                bc.description,
+                u.username as invited_by_username
+            FROM 
+                user_management.channel_invitations ci
+            JOIN 
+                user_management.broadcast_channels bc ON ci.channel_id = bc.id
+            JOIN 
+                user_management.users u ON ci.invited_by = u.id
+            WHERE 
+                ci.user_id = :user_id AND ci.status = 'pending'
+            ORDER BY 
+                ci.created_at DESC
+        ";
+        
+        $stmt = $conn->prepare($query);
+        $stmt->bindParam(':user_id', $user_id);
+        $stmt->execute();
+        
+        $invitations = [];
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $invitations[] = [
+                'invitation_id' => $row['invitation_id'],
+                'channel_id' => $row['channel_id'],
+                'name' => htmlspecialchars($row['name']),
+                'description' => htmlspecialchars($row['description']),
+                'invited_by_username' => htmlspecialchars($row['invited_by_username'])
+            ];
+        }
+        
+        echo json_encode($invitations);
+    } catch (PDOException $e) {
         echo json_encode([
             'status' => 'error',
-            'message' => 'Failed to retrieve invitations: ' . pg_last_error($conn)
+            'message' => 'Failed to retrieve invitations: ' . $e->getMessage()
         ]);
-        return;
     }
-    
-    $invitations = [];
-    while ($row = pg_fetch_assoc($result)) {
-        $invitations[] = [
-            'invitation_id' => $row['invitation_id'],
-            'channel_id' => $row['channel_id'],
-            'name' => htmlspecialchars($row['name']),
-            'description' => htmlspecialchars($row['description']),
-            'invited_by_username' => htmlspecialchars($row['invited_by_username'])
-        ];
-    }
-    
-    echo json_encode($invitations);
 }
 
 function respondToInvitation($conn, $user_id) {
@@ -205,74 +208,76 @@ function respondToInvitation($conn, $user_id) {
         return;
     }
 
-    pg_query($conn, "BEGIN");
-
     try {
+        $conn->beginTransaction();
+
         // Check invitation validity
-        $result = pg_query_params($conn,
-            "SELECT channel_id FROM channel_invitations 
-             WHERE id = $1 AND user_id = $2 AND status = 'pending'",
-            [$invitation_id, $user_id]
-        );
+        $stmt = $conn->prepare("
+            SELECT channel_id FROM user_management.channel_invitations 
+            WHERE id = :invitation_id AND user_id = :user_id AND status = 'pending'
+        ");
         
-        if (!$result) {
-            throw new Exception(pg_last_error($conn));
-        }
+        $stmt->bindParam(':invitation_id', $invitation_id);
+        $stmt->bindParam(':user_id', $user_id);
+        $stmt->execute();
         
-        if (pg_num_rows($result) === 0) {
+        if ($stmt->rowCount() === 0) {
             echo json_encode([
                 'status' => 'error',
                 'message' => 'Invitation not found or already processed'
             ]);
-            pg_query($conn, "ROLLBACK");
+            $conn->rollBack();
             return;
         }
 
-        $channel_id = pg_fetch_assoc($result)['channel_id'];
+        $channel_id = $stmt->fetchColumn();
 
         // Update invitation
         $status = ($response === 'accept') ? 'accepted' : 'declined';
-        $result = pg_query_params($conn,
-            "UPDATE channel_invitations SET status = $1 WHERE id = $2",
-            [$status, $invitation_id]
-        );
+        $stmt = $conn->prepare("
+            UPDATE user_management.channel_invitations 
+            SET status = :status 
+            WHERE id = :invitation_id
+        ");
         
-        if (!$result) {
-            throw new Exception(pg_last_error($conn));
-        }
+        $stmt->bindParam(':status', $status);
+        $stmt->bindParam(':invitation_id', $invitation_id);
+        $stmt->execute();
 
         if ($response === 'accept') {
             // Check existing membership
-            $result = pg_query_params($conn,
-                "SELECT id FROM channel_members WHERE channel_id = $1 AND user_id = $2",
-                [$channel_id, $user_id]
-            );
+            $stmt = $conn->prepare("
+                SELECT id FROM user_management.channel_members 
+                WHERE channel_id = :channel_id AND user_id = :user_id
+            ");
             
-            if (!$result) {
-                throw new Exception(pg_last_error($conn));
-            }
+            $stmt->bindParam(':channel_id', $channel_id);
+            $stmt->bindParam(':user_id', $user_id);
+            $stmt->execute();
             
-            if (pg_num_rows($result) === 0) {
-                $result = pg_query_params($conn,
-                    "INSERT INTO channel_members (channel_id, user_id, is_admin) VALUES ($1, $2, FALSE)",
-                    [$channel_id, $user_id]
-                );
+            if ($stmt->rowCount() === 0) {
+                $stmt = $conn->prepare("
+                    INSERT INTO user_management.channel_members (channel_id, user_id, is_admin) 
+                    VALUES (:channel_id, :user_id, FALSE)
+                ");
                 
-                if (!$result) {
-                    throw new Exception(pg_last_error($conn));
-                }
+                $stmt->bindParam(':channel_id', $channel_id);
+                $stmt->bindParam(':user_id', $user_id);
+                $stmt->execute();
             }
         }
 
-        pg_query($conn, "COMMIT");
+        $conn->commit();
 
         $message = ($response === 'accept') ? 'You have joined the channel' : 'Invitation declined';
         echo json_encode([
             'status' => 'success',
             'message' => $message
         ]);
-    } catch (Exception $e) {
-        pg_query($conn, "ROLLBACK");
+    } catch (PDOException $e) {
+        if ($conn->inTransaction()) {
+            $conn->rollBack();
+        }
         echo json_encode([
             'status' => 'error',
             'message' => 'Failed to process invitation: ' . $e->getMessage()

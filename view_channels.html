@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>My Broadcast Channels</title>
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 40px;
+      margin: 0;
+      min-height: 100vh;
+      color: #333;
+    }
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background: white;
+      padding: 30px;
+      border-radius: 15px;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    }
+    h2 {
+      text-align: center;
+      color: #333;
+      margin-bottom: 25px;
+    }
+    .channel-list {
+      margin-top: 20px;
+    }
+    .channel-item {
+      background-color: #f8f9fa;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 15px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .channel-item:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+    .channel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .channel-name {
+      font-size: 18px;
+      font-weight: 600;
+      color: #444;
+    }
+    .channel-date {
+      font-size: 14px;
+      color: #666;
+    }
+    .channel-description {
+      color: #666;
+      margin-bottom: 15px;
+    }
+    .channel-actions {
+      display: flex;
+      gap: 10px;
+    }
+    .btn {
+      display: inline-block;
+      padding: 8px 15px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 14px;
+      transition: background-color 0.3s;
+      cursor: pointer;
+    }
+    .btn-primary {
+      background-color: #667eea;
+      color: white;
+    }
+    .btn-primary:hover {
+      background-color: #5a6fd1;
+    }
+    .btn-secondary {
+      background-color: #764ba2;
+      color: white;
+    }
+    .btn-secondary:hover {
+      background-color: #633b8c;
+    }
+    .btn-danger {
+      background-color: #dc3545;
+      color: white;
+    }
+    .btn-danger:hover {
+      background-color: #c82333;
+    }
+    .no-channels {
+      text-align: center;
+      color: #666;
+      padding: 20px;
+      background-color: #f8f9fa;
+      border-radius: 10px;
+    }
+    .nav-links {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 30px;
+    }
+    .nav-links a {
+      color: #667eea;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .nav-links a:hover {
+      text-decoration: underline;
+    }
+    .loading {
+      text-align: center;
+      padding: 20px;
+    }
+  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div class="container">
+  <h2>My Broadcast Channels</h2>
+  
+  <div id="channel-list" class="channel-list">
+    <div class="loading">Loading your channels...</div>
+  </div>
+  
+  <div class="nav-links">
+    <a href="dashboard.php">← Back to Dashboard</a>
+    <a href="create_channel.html">Create New Channel</a>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Fetch user's channels
+  fetch('get_channels.php')
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+      return response.json();
+    })
+    .then(data => {
+      const channelList = document.getElementById('channel-list');
+      channelList.innerHTML = '';
+      
+      if (data.status === 'success') {
+        if (data.channels.length === 0) {
+          channelList.innerHTML = '<div class="no-channels">You haven\'t created any channels yet.</div>';
+        } else {
+          data.channels.forEach(channel => {
+            const channelDate = new Date(channel.created_at).toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric'
+            });
+            
+            channelList.innerHTML += `
+              <div class="channel-item">
+                <div class="channel-header">
+                  <div class="channel-name">${channel.name}</div>
+                  <div class="channel-date">Created: ${channelDate}</div>
+                </div>
+                <div class="channel-description">${channel.description || 'No description'}</div>
+                <div class="channel-actions">
+                  <a href="view_channel.php?id=${channel.id}" class="btn btn-primary">View Messages</a>
+                  <a href="edit_channel.php?id=${channel.id}" class="btn btn-secondary">Edit</a>
+                  <button onclick="deleteChannel(${channel.id}, '${channel.name}')" class="btn btn-danger">Delete</button>
+                </div>
+              </div>
+            `;
+          });
+        }
+      } else {
+        channelList.innerHTML = `<div class="no-channels">Error: ${data.message}</div>`;
+      }
+    })
+    .catch(error => {
+      document.getElementById('channel-list').innerHTML = `
+        <div class="no-channels">Error loading channels: ${error.message}</div>
+      `;
+    });
+    
+  // Function to delete a channel
+  window.deleteChannel = function(channelId, channelName) {
+    if (confirm(`Are you sure you want to delete the channel "${channelName}"? This will delete all messages in this channel.`)) {
+      fetch('delete_channel.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `channel_id=${channelId}`
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.status === 'success') {
+          alert('Channel deleted successfully');
+          location.reload();
+        } else {
+          alert(`Error: ${data.message}`);
+        }
+      })
+      .catch(error => {
+        alert(`Error: ${error.message}`);
+      });
+    }
+  };
+});
+</script>
+
+</body>
+</html>
