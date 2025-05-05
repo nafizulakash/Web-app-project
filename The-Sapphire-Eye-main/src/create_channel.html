@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Create Broadcast Channel</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f2f2f2;
+      padding: 40px;
+    }
+    .container {
+      max-width: 500px;
+      margin: auto;
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    h2 {
+      text-align: center;
+      color: #333;
+      margin-bottom: 25px;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: bold;
+    }
+    input[type="text"], textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    textarea {
+      height: 100px;
+      resize: vertical;
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      background: #007BFF;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    .message {
+      margin-top: 20px;
+      text-align: center;
+      padding: 10px;
+      border-radius: 4px;
+    }
+    .success {
+      background-color: #d4edda;
+      color: #155724;
+    }
+    .error {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+    .nav-links {
+      margin-top: 20px;
+      text-align: center;
+    }
+    .nav-links a {
+      color: #007BFF;
+      text-decoration: none;
+    }
+    .nav-links a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h2>Create Broadcast Channel</h2>
+  
+  <form action="create_channel.php" method="POST">
+    <div class="form-group">
+      <label for="name">Channel Name:</label>
+      <input type="text" id="name" name="name" required>
+    </div>
+    
+    <div class="form-group">
+      <label for="description">Description (optional):</label>
+      <textarea id="description" name="description"></textarea>
+    </div>
+    
+    <button type="submit">Create Channel</button>
+  </form>
+
+  <?php if (isset($_GET['success'])): ?>
+    <div class="message success">Channel created successfully!</div>
+  <?php endif; ?>
+  
+  <?php if (isset($_GET['error'])): ?>
+    <div class="message error"><?php echo htmlspecialchars($_GET['error']); ?></div>
+  <?php endif; ?>
+  
+  <div class="nav-links">
+    <a href="view_channels.html">View My Channels</a>
+  </div>
+</div>
+
+</body>
+</html>
